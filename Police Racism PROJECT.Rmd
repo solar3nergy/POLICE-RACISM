@@ -1,0 +1,204 @@
+---
+title: "ANALYSIS OF POLICING DATASET FROM DALLAS, TEXAS IN 2016: RACISM IN POLICING?"
+author: 'REG NO: 2111321'
+date: "MA304 (Exploratory Data Analysis and Data Visualisation) Final Project"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(shiny)
+library(leaflet)
+library(RColorBrewer)
+library(tidyverse)
+library(dplyr)
+library(leaflet.extras)
+library(lubridate)
+library(gridExtra)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(ggridges)
+library(plotly)
+library(scales)
+
+```
+
+```{r, include=FALSE}
+seun_police_data = read.csv('/Users/oluwaseunmustapha/Downloads/37-00049_UOF-P_2016_prepped.csv',header = TRUE)
+seun_police_data <- seun_police_data [-1,]
+dim(seun_police_data)
+names(seun_police_data)
+head(seun_police_data)
+```
+
+
+## Introduction
+
+What criteria do you use to assess justice? And how do you address the issue of police racism? By examining census and police department deployment data, we seek for factors that contribute to racial inequities in policing. The ultimate purpose is to tell law enforcement organisations about places where they may improve by identifying deployment regions where racial disparities exist that are not explained by crime rates or poverty levels.
+
+### Dataset Used
+
+By exploring our data which is publicly available at https://www.kaggle.com/center-for-policing-equity/data-science-for-good, we will try to come up with facts and reasons based on logics and present our data in such a way that it helps improve the justice in Dallas, Texas. The dataset used for this analysis, has the details of the Officer, subject, location, crime incidents cases, race, date, time and other metrics throughout the year 2016.
+
+
+```{r, echo=FALSE, message=FALSE}
+
+## Changing dates types to actual date time
+
+seun_police_data$INCIDENT_DATE <- as.Date(seun_police_data$INCIDENT_DATE, format = "%m/%d/%Y")
+seun_police_data$INCIDENT_DATE <- gsub("00","20",seun_police_data$INCIDENT_DATE)
+seun_police_data$INCIDENT_DATE <- as.Date(seun_police_data$INCIDENT_DATE, format = "%Y-%m-%d")
+seun_police_data$INCIDENT_TIME <- format(strptime(seun_police_data$INCIDENT_TIME, "%I:%M:%S %p"), "%H:%M:%S")
+seun_police_data$INCIDENT_MONTH <- months(as.Date(seun_police_data$INCIDENT_DATE))
+seun_police_data$INC_MONTH <-format(seun_police_data$INCIDENT_DATE,"%m")
+seun_police_data$INCIDENT_HOUR <- as.numeric(substr(seun_police_data$INCIDENT_TIME, 0, 2))
+seun_police_data$INCIDENT_DAY <- wday(seun_police_data$INCIDENT_DATE, label=TRUE)
+seun_police_data$INC_HOUR <- substr(seun_police_data$INCIDENT_TIME, 0, 2)
+seun_police_data$INC_DATE <- substr(seun_police_data$INCIDENT_DATE, 9, 10)
+
+## Create group of datas:
+
+police_year_data <-  seun_police_data %>%
+  group_by(INCIDENT_DATE,INCIDENT_MONTH,INCIDENT_DAY) %>%
+  summarize(count = n())
+
+police_month_data <-  seun_police_data %>%
+  group_by(INC_MONTH) %>%
+  summarize(count = n())
+
+police_day_data <-  seun_police_data %>%
+  group_by(INCIDENT_DAY,INCIDENT_HOUR) %>%
+  summarize(count = n())
+
+seun_police_data$INC_HOUR <- substr(seun_police_data$INCIDENT_TIME, 0, 2)
+
+seun_police_data %>% group_by(INC_HOUR) %>%
+  summarize(avg =n()) -> police_n_hour_data
+```
+
+FIRST LETS VISUALIZE THE INCIDENT RATES BY TIME AND DATE
+```{r, echo=FALSE, message=FALSE}
+
+rep1 <- ggplot(police_n_hour_data, aes(x = INC_HOUR, y = avg, group = "count")) + geom_line( size = 1, colour = "coral4") + labs(x="HOURS IN A DAY", y= "INCIDENT COUNTS", title="Hours vs  Incident Rates")+ theme_bw() +
+theme(axis.text.x=element_text(angle=-90, vjust=0.5)) + labs(x = "Hour of the day", y = "count") + theme_bw()
+
+rep2 <- ggplot(police_month_data, aes(x=INC_MONTH, y =count, group=1)) + geom_line()  + geom_line( size = 1,colour ="steelblue") + labs(x="MONTHS OF 2016", y= "INCIDENT COUNTS", title="Months vs Incident Rates")  + theme_bw()
+
+
+rep3 <- ggplot(data = police_year_data, aes(INCIDENT_DATE, count)) +   geom_line(size=0.5, col="gray") +
+geom_smooth(method = "loess", color = "purple", span = 1/5) + theme_bw() + labs(x="Months ", y= "INCIDENT COUNTS", title="Year vs Incidents")
+
+
+dist1 <- ggplot(police_year_data, aes(count)) +
+  geom_density(alpha = 0.5, colour = "red", fill ="grey")+ labs(x="INCIDENTS COUNT", y= "DENSITY", title="Distribuion of incident rates") + theme_bw()
+
+
+#grid.arrange(class1,rep1,rep2,rep3,nrow=2)
+ggplotly(rep1)
+ggplotly(rep2)
+ggplotly(rep3)
+ggplotly(dist1)
+
+```
+
+We can see that the number of reported incidents has decreased during the course of 2016. Peak hours were 17:00 and 20:00, when a large number of occurrences were reported, followed by 02:00, when roughly 150 incidents were reported. The lowest incidents was recorded at 7:00 a.m., also ranging from 4:00 to 10:00 a.m.
+Also from the monthly plot we can see that the lowest number of incidents were reported in December with 97 incidents while highest number of incidents were reported in March with a count of 259.
+
+### 
+
+
+The quartile ranges and median might be easier to understand if we looked at central tendancy. We might also discover outliers and their values using this graph. For Months, a box plot was plotted across the subject races and incidence rates. They allow us to investigate the monthly distributional characteristics as well as the severity of the episodes. They're a good approach to see the range and other aspects of a large group's responses. 
+
+###
+
+
+A summary of the incident counts by Subject Races across months is shown below
+
+```{r, echo=FALSE, message=FALSE}
+seun_police_data   %>% 
+  group_by(INCIDENT_DATE,INC_MONTH,SUBJECT_RACE) %>%
+  summarize(avg =n()) -> dated_data
+
+
+sub3 <- ggplot(dated_data , aes(x = (INC_MONTH), y= avg, fill = INC_MONTH)) +
+   geom_boxplot() + labs(x= 'DAYS',y = 'INCIDENT RATE', title = paste("Central Tendency of", ' Incident rate across SUBJECT RACE ')) +
+  theme(legend.position="none") + facet_wrap(~SUBJECT_RACE)  + 
+    coord_cartesian(ylim = c(1, 12))
+ggplotly(sub3)
+```
+
+From the boxplots above, we can conclude that Black, Hispanic and White people committed the highest number of crimes with these crimes having the most number of occurences in the month of March.
+
+
+###
+
+
+Lets now Visualize the Crime Incident Rates by the Divisions in Dallas
+
+```{r, echo=FALSE, message=FALSE}
+
+police_div <-  seun_police_data %>%
+  group_by(INC_MONTH,DIVISION) %>%
+  summarize(count = n())
+
+
+police_data_div <- ggplot(police_div, aes(x = INC_MONTH, y = count, group = 'count'))  + geom_line( aes(color= DIVISION), size = 1) + facet_wrap(~ DIVISION,ncol=4) +  theme(axis.text.x=element_text(angle=-90, vjust=0.5)) + theme(legend.position="none") + labs(x="MONTHS ", y= "INCIDENT COUNTS", title=" Crime Incidents by Divisions")
+
+ggplotly(police_data_div)
+```
+
+We can observe from the plot above that across all the Divisions there was a decline in incidents as we tend towards the end of the year. We can also observe that Central Division has the highest number of crimes while the lowest crime incident rates were recorde in the Northwest Division.
+
+###
+
+
+Now let's see the frequency of the officers race as against the race of their subjects
+
+```{r, echo=FALSE, message=FALSE}
+
+police_subrace <-  seun_police_data %>%
+  group_by(SUBJECT_RACE, INC_MONTH) %>%
+  summarize(count = n())
+
+police_offrace <-  seun_police_data %>%
+  group_by(OFFICER_RACE, INC_MONTH) %>%
+  summarize(count = n())
+
+police_subrace <- police_subrace[complete.cases(police_subrace), ]
+police_offrace <- police_offrace[complete.cases(police_offrace), ]
+
+pol1 <- ggplot(police_offrace, aes(x= INC_MONTH, y=OFFICER_RACE,fill = count)) + geom_tile( ) + 
+geom_text(aes(INC_MONTH, OFFICER_RACE, label = count), color = "black", size = 4) + 
+  labs(x="DAYS OF MONTH", y= "MONTHS", title=" Incident Rates across Dates and Months")+ 
+  scale_fill_gradientn(colours = c("tomato3", "#FFFFFF", "green4"))
+
+pol2 <- ggplot(police_subrace, aes(x= INC_MONTH, y=SUBJECT_RACE,fill = count)) + geom_tile( ) + 
+geom_text(aes(INC_MONTH, SUBJECT_RACE, label = count), color = "black", size = 4) + 
+  labs(x="DAYS OF MONTH", y= "MONTHS", title=" Incident Rates across Dates and Months") +
+  scale_fill_gradientn(colours = c("tomato3", "#FFFFFF", "green4"))
+
+grid.arrange(pol1,pol2, nrow=2,ncol=1)
+```
+
+We can clearly see from the above plot that White officers always have an high probability of handling a case where the subject is black.
+
+###
+
+```{r, echo=FALSE, message=FALSE}
+
+subject_race_per_officer<- seun_police_data %>% count(OFFICER_RACE, SUBJECT_RACE)%>% ggplot(aes(x= OFFICER_RACE, y= n, fill= SUBJECT_RACE,)) + ylab("FREQUENCY") + geom_col() + scale_fill_manual(values = c("blue", "coral4", "black", "yellow", "purple", "green", "orange")) 
+
+ggplotly(subject_race_per_officer)
+```
+
+The above plot also helps us confirm that the highest number of cases handled by White officers are those that have Black Subject races followed closely by Hispanic officers.
+
+
+### CONCLUSION
+
+The number of crimes increased in March, and there is a significant gap between the Black subject race and the White officer race . This finding should be treated with utmost care because we can only gain a good picture of the race problem in Dallas total population and distribution if we know the background facts about total population and distribution. A year's worth of data is insufficient to support some of our perception, such as lower crime rates in December (the holiday season), and it restricts yearly seasonality assessments. With the data provided, the key task was to see if there was a racism problem in Dallas between Whites and Blacks. However, we can't comprehend any facts unless we have a complete picture of the situation. As a result, background information analysis will become more important in the future.
+
+
+###
+
